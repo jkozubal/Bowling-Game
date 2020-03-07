@@ -118,7 +118,6 @@ void initRenderables()
 
 }
 
-// helper function: glm::vec3 position -> PxTransform
 PxTransform posToPxTransform(glm::vec3 const& pos) {
     return PxTransform(pos.x, pos.y, pos.z);
 }
