@@ -8,6 +8,7 @@ class Physics
 public:
     Physics(float gravity);
     virtual ~Physics();
+    PxCooking* cooking;
     PxPhysics*              physics = nullptr;
     PxScene*				scene = nullptr;
 

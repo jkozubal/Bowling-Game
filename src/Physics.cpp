@@ -6,6 +6,8 @@ Physics::Physics(float gravity)
 {
     foundation = PxCreateFoundation(PX_PHYSICS_VERSION, allocator, errorCallback);
 
+    cooking = PxCreateCooking(PX_PHYSICS_VERSION, *foundation, PxCookingParams(PxTolerancesScale()));
+
     physics = PxCreatePhysics(PX_PHYSICS_VERSION, *foundation, PxTolerancesScale(), true);
 
     PxSceneDesc sceneDesc(physics->getTolerancesScale());

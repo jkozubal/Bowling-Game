@@ -22,7 +22,7 @@ namespace Objects {
 
     const int numPins = 10;
 
-    Properties  ball{ { 0.7, 0.7, 0.7 },{ -3, 0.25, 0 } },
+    Properties  ball{ { 0.7, 0.7, 0.7 },{ -10, 0.25, 0 } },
         pins[numPins] = {
                 { { 0.3, 0.3, 0.3 },{  3, 0.25, 0 } },
                 { { 0.3, 0.3, 0.3 },{  3.5, 0.25, -0.25 } },
@@ -34,8 +34,7 @@ namespace Objects {
                 { { 0.3, 0.3, 0.3 },{  4.5, 0.25, -0.75 } },
                 { { 0.3, 0.3, 0.3 },{  4.5, 0.25, 0.25 } },
                 { { 0.3, 0.3, 0.3 },{  4.5, 0.25, 0.75 } }
-        },
-        pin{ { 0.1, 0.1, 0.1 },{ 3, 0.25, 0 } };
+    };
 }
 
 Core::Shader_Loader shaderLoader;
@@ -43,12 +42,13 @@ GLuint programColor;
 GLuint programTexture;
 
 obj::Model planeModel, sphereModel, pinModel;
+PxVec3 vertexes[1647];
 GLuint objectTexture, groundTexture, pinTexture;
 
-glm::vec3 cameraPos = glm::vec3(0, 2, 10);
+glm::vec3 cameraPos = glm::vec3(-20, 2.5, 0);
 glm::vec3 cameraDir;
 glm::vec3 cameraSide;
-float cameraAngle = 0;
+float cameraAngle = 1.58f;
 glm::mat4 cameraMatrix, perspectiveMatrix;
 
 glm::vec3 lightDir = glm::normalize(glm::vec3(0.5, -1, -0.5));
@@ -85,7 +85,12 @@ void initRenderables()
     planeModel = obj::loadModelFromFile("models/plane.obj");
     sphereModel = obj::loadModelFromFile("models/sphere.obj");
     pinModel = obj::loadModelFromFile("models/bowlingPin.obj");
-
+    std::cout << pinModel.vertex.size() / 3;
+    int j = 0;
+    for (int i = 0; i < pinModel.vertex.size(); i+=3) {
+        vertexes[j] = PxVec3(pinModel.vertex[i] * 0.3, pinModel.vertex[i + 1] * 0.3, pinModel.vertex[i + 2] * 0.3);
+        j++;
+    }
     // load textures
     groundTexture = Core::LoadTexture("textures/sand.jpg");
     objectTexture = Core::LoadTexture("textures/a.jpg");
@@ -108,7 +113,6 @@ void initRenderables()
     renderables.emplace_back(&rendHandle);
 
     //create Pin
-    
     for (int i = 0; i < Objects::numPins; i++) {
         rendPins[i].model = &pinModel;
         rendPins[i].textureId = pinTexture;
@@ -118,29 +122,41 @@ void initRenderables()
 
 }
 
-PxTransform posToPxTransform(glm::vec3 const& pos) {
-    return PxTransform(pos.x, pos.y, pos.z);
-}
-// helper function: glm::vec3 size -> PxBoxGeometry
+
 PxBoxGeometry sizeToPxBoxGeometry(glm::vec3 const& size) {
     auto h = size * 0.5f;
     return PxBoxGeometry(h.x, h.y , h.z);
 }
 
+
 void createDynamicPin(PxRigidDynamic*& body, Renderable* rend, glm::vec3 const& pos, glm::vec3 const& size)
 {
-    body = pxScene.physics->createRigidDynamic(posToPxTransform(pos));
+    PxConvexMeshDesc convexDesc;
+    convexDesc.points.count = 1647;
+    convexDesc.points.stride = sizeof(PxVec3);
+    convexDesc.points.data = vertexes;
+    convexDesc.flags = PxConvexFlag::eCOMPUTE_CONVEX;
 
-    PxShape* boxShape = pxScene.physics->createShape(sizeToPxBoxGeometry(size), *material);
-    body->attachShape(*boxShape);
-    boxShape->release();
+    PxDefaultMemoryOutputStream buf;
+    PxConvexMeshCookingResult::Enum result;
+    if (!pxScene.cooking->cookConvexMesh(convexDesc, buf, &result))
+        cout << "can't initialize mesh";
+        
+    PxDefaultMemoryInputData input(buf.getData(), buf.getSize());
+    PxConvexMesh* convexMesh = pxScene.physics->createConvexMesh(input);
+
+    body = pxScene.physics->createRigidDynamic(PxTransform(pos.x, pos.y, pos.z));
+    PxShape* aConvexShape = PxRigidActorExt::createExclusiveShape(*body, PxConvexMeshGeometry(convexMesh), *material);
+
+    body->attachShape(*aConvexShape);
     body->userData = rend;
     pxScene.scene->addActor(*body);
+    aConvexShape->release();
 }
 
 void createDynamicSphere(PxRigidDynamic*& body, Renderable* rend, glm::vec3 const& pos, float radius)
 {
-    body = pxScene.physics->createRigidDynamic(posToPxTransform(pos));
+    body = pxScene.physics->createRigidDynamic(PxTransform(pos.x, pos.y, pos.z));
     PxShape* sphereShape = pxScene.physics->createShape(PxSphereGeometry(radius), *ballMaterial);
     body->attachShape(*sphereShape);
     sphereShape->release();
@@ -150,8 +166,8 @@ void createDynamicSphere(PxRigidDynamic*& body, Renderable* rend, glm::vec3 cons
 
 void initPhysicsScene()
 {
-    // single common material
-    material = pxScene.physics->createMaterial(3.f, 3.f, 0.6f);
+    // material for ball and pins
+    material = pxScene.physics->createMaterial(3.f, 3.f, 0.2f);
     ballMaterial = pxScene.physics->createMaterial(3.f, 3.f, 0.01f);
     // create ground
     bodyGround = pxScene.physics->createRigidStatic(PxTransformFromPlaneEquation(PxPlane(0, 1, 0, 0)));
@@ -161,7 +177,7 @@ void initPhysicsScene()
     bodyGround->userData = &rendGround;
     pxScene.scene->addActor(*bodyGround);
 
-    // create handle
+    // create ball
     createDynamicSphere(bodyHandle, &rendHandle, Objects::ball.pos, Objects::ball.size.x * 0.5f);
     bodyHandle->setRigidBodyFlag(PxRigidBodyFlag::eKINEMATIC, false);
     PxRigidBodyExt::setMassAndUpdateInertia(*bodyHandle, 8.f);
@@ -169,10 +185,9 @@ void initPhysicsScene()
     // create pins
     for (int i = 0; i < Objects::numPins; i++) {
         createDynamicPin(bodyPins[i], &rendPins[i], Objects::pins[i].pos, Objects::pins[i].size);
-        PxRigidBodyExt::setMassAndUpdateInertia(*bodyPins[i], 0.2f);
+        PxRigidBodyExt::setMassAndUpdateInertia(*bodyPins[i], 0.1f);
     }
-    //createDynamicPin(pinHandle, &rendPin, Objects::pin.pos, Objects::pin.size);
-    //PxRigidBodyExt::setMassAndUpdateInertia(*pinHandle, 1.f);
+
 
 }
 
@@ -218,7 +233,7 @@ void keyboard(unsigned char key, int x, int y)
 {
     float angleSpeed = 0.1f;
     float moveSpeed = 0.1f;
-    float handleSpeed = 20.f;
+    float handleSpeed = 35.f;
     switch (key)
     {
     case 'z': cameraAngle -= angleSpeed; break;
