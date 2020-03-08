@@ -130,6 +130,7 @@ PxBoxGeometry sizeToPxBoxGeometry(glm::vec3 const& size) {
 void createDynamicPin(PxRigidDynamic*& body, Renderable* rend, glm::vec3 const& pos, glm::vec3 const& size)
 {
     body = pxScene.physics->createRigidDynamic(posToPxTransform(pos));
+
     PxShape* boxShape = pxScene.physics->createShape(sizeToPxBoxGeometry(size), *material);
     body->attachShape(*boxShape);
     boxShape->release();
