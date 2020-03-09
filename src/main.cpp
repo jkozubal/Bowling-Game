@@ -49,6 +49,11 @@ glm::vec3 cameraPos = glm::vec3(-20, 2.5, 0);
 glm::vec3 cameraDir;
 glm::vec3 cameraSide;
 float cameraAngle = 1.58f;
+float camX = cameraPos.x;
+float camZ = cameraPos.z;
+float lastPosition = 0;
+//telling camera to look at specific object
+
 glm::mat4 cameraMatrix, perspectiveMatrix;
 
 glm::vec3 lightDir = glm::normalize(glm::vec3(0.5, -1, -0.5));
@@ -60,6 +65,7 @@ Physics pxScene(9.8 /* gravity (m/s^2) */);
 // fixed timestep for stable and deterministic simulation
 const double physicsStepTime = 1.f / 60.f;
 double physicsTimeToProcess = 0;
+glm::mat4 view;
 
 // physical objects
 PxMaterial* material = nullptr;
@@ -185,7 +191,7 @@ void initPhysicsScene()
     // create pins
     for (int i = 0; i < Objects::numPins; i++) {
         createDynamicPin(bodyPins[i], &rendPins[i], Objects::pins[i].pos, Objects::pins[i].size);
-        PxRigidBodyExt::setMassAndUpdateInertia(*bodyPins[i], 0.1f);
+        PxRigidBodyExt::setMassAndUpdateInertia(*bodyPins[i], 0.2f);
     }
 
 
@@ -226,7 +232,7 @@ void updateTransforms()
 
 void moveHandle(float offset) {
     if (!bodyHandle) return;
-    bodyHandle->setAngularVelocity(PxVec3(0.f, 0.f, offset));
+    bodyHandle->setAngularVelocity(PxVec3(-camZ*4.f, 0.f, offset));
 }
 
 void keyboard(unsigned char key, int x, int y)
@@ -247,9 +253,26 @@ void keyboard(unsigned char key, int x, int y)
     case 'l': moveHandle(-handleSpeed);  break;
     }
 }
-
+float differenceZ;
 void mouse(int x, int y)
 {
+    ShowCursor(false);
+    const float radius = 3.0f;
+    const float sensitivity = 0.005f;
+    differenceZ = lastPosition - x;
+    camZ = (cos(x)/100.f * radius - lastPosition +300) * sensitivity;
+    if (camZ > 4) {
+        camZ = 4;
+    }
+    else if (camZ < -4) {
+        camZ = -4;
+    }
+    cout << x << '\n';
+
+    view = glm::lookAt(glm::vec3(camX, cameraPos.y, camZ),
+        Objects::ball.pos,
+        glm::vec3(0.0f, 1.0f, 0.0f));
+    lastPosition = x;
 }
 
 glm::mat4 createCameraMatrix()
@@ -257,7 +280,6 @@ glm::mat4 createCameraMatrix()
     cameraDir = glm::normalize(glm::vec3(cosf(cameraAngle - glm::radians(90.0f)), 0, sinf(cameraAngle - glm::radians(90.0f))));
     glm::vec3 up = glm::vec3(0, 1, 0);
     cameraSide = glm::cross(cameraDir, up);
-
     return Core::createViewMatrix(cameraPos, cameraDir, up);
 }
 
@@ -315,7 +337,7 @@ void renderScene()
     }
 
     // Update of camera and perspective matrices
-    cameraMatrix = createCameraMatrix();
+    cameraMatrix = view;
     perspectiveMatrix = Core::createPerspectiveMatrix();
 
     glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
