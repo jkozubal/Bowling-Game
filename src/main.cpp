@@ -91,16 +91,15 @@ void initRenderables()
     planeModel = obj::loadModelFromFile("models/plane.obj");
     sphereModel = obj::loadModelFromFile("models/sphere.obj");
     pinModel = obj::loadModelFromFile("models/bowlingPin.obj");
-    std::cout << pinModel.vertex.size() / 3;
     int j = 0;
     for (int i = 0; i < pinModel.vertex.size(); i+=3) {
         vertexes[j] = PxVec3(pinModel.vertex[i] * 0.3, pinModel.vertex[i + 1] * 0.3, pinModel.vertex[i + 2] * 0.3);
         j++;
     }
     // load textures
-    groundTexture = Core::LoadTexture("textures/sand.jpg");
-    objectTexture = Core::LoadTexture("textures/a.jpg");
-    pinTexture = Core::LoadTexture("textures/a.jpg");
+    groundTexture = Core::LoadTexture("textures/bowling_lane.bmp");
+    objectTexture = Core::LoadTexture("textures/red.jpg");
+    pinTexture = Core::LoadTexture("textures/pinTexture.jpg");
 
     // This time we organize all the renderables in a list
     // of basic properties (model, transform, texture),
@@ -267,7 +266,6 @@ void mouse(int x, int y)
     else if (camZ < -4) {
         camZ = -4;
     }
-    cout << x << '\n';
 
     view = glm::lookAt(glm::vec3(camX, cameraPos.y, camZ),
         Objects::ball.pos,
@@ -382,7 +380,7 @@ int main(int argc, char** argv)
     glutInitDisplayMode(GLUT_DEPTH | GLUT_DOUBLE | GLUT_RGBA);
     glutInitWindowPosition(200, 200);
     glutInitWindowSize(600, 600);
-    glutCreateWindow("OpenGL + PhysX");
+    glutCreateWindow("Bowling game for computer graphics");
     glewInit();
 
     init();
