@@ -233,9 +233,36 @@ void updateTransforms()
 
 void moveHandle(float offset) {
     if (!bodyHandle) return;
-    bodyHandle->setAngularVelocity(PxVec3(-camZ*4.f, 0.f, offset));
+    bodyHandle->setAngularVelocity(PxVec3(-camZ*40.f, 0.f, offset));
 }
+bool blocked = false;
+//maybe pass array of fallen pins and reset without them if provided.
+void resetPinsAndBall() {
+    blocked = false;
+    //remove pins and ball
+    for (int i = 0; i < Objects::numPins; i++) {
+        pxScene.scene->removeActor(*bodyPins[i]);
+    }
+    pxScene.scene->removeActor(*bodyHandle);
+    // create ground
+    bodyGround = pxScene.physics->createRigidStatic(PxTransformFromPlaneEquation(PxPlane(0, 1, 0, 0)));
+    PxShape* planeShape = pxScene.physics->createShape(PxPlaneGeometry(), *material);
+    bodyGround->attachShape(*planeShape);
+    planeShape->release();
+    bodyGround->userData = &rendGround;
+    pxScene.scene->addActor(*bodyGround);
 
+    // create ball
+    createDynamicSphere(bodyHandle, &rendHandle, Objects::ball.pos, Objects::ball.size.x * 0.5f);
+    bodyHandle->setRigidBodyFlag(PxRigidBodyFlag::eKINEMATIC, false);
+    PxRigidBodyExt::setMassAndUpdateInertia(*bodyHandle, 8.f);
+
+    // create pins
+    for (int i = 0; i < Objects::numPins; i++) {
+        createDynamicPin(bodyPins[i], &rendPins[i], Objects::pins[i].pos, Objects::pins[i].size);
+        PxRigidBodyExt::setMassAndUpdateInertia(*bodyPins[i], 0.2f);
+    }
+}
 void keyboard(unsigned char key, int x, int y)
 {
     float angleSpeed = 0.1f;
@@ -249,9 +276,9 @@ void keyboard(unsigned char key, int x, int y)
     case 's': cameraPos -= cameraDir * moveSpeed; break;
     case 'd': cameraPos += cameraSide * moveSpeed; break;
     case 'a': cameraPos -= cameraSide * moveSpeed; break;
-
-    case 'j': moveHandle(handleSpeed);  break;
-    case 'l': moveHandle(-handleSpeed);  break;
+    case 'r': 
+        resetPinsAndBall();
+        break;
     }
 }
 float differenceZ;
@@ -278,7 +305,7 @@ double startingTime;
 double clickTime = 0.f;
 int leftButtonState = GLUT_UP;
 double endTime;
-bool blocked = false;
+
 void buttonClicks(int button, int state, int x, int y) {
     if (!blocked) {
         if (button == GLUT_LEFT_BUTTON && state == GLUT_DOWN) {
@@ -417,7 +444,6 @@ void renderScene()
         glVertex2f(clickTime, 2.f);
         glVertex2f(0.0, 2.f);
     }
-    
     glEnd();
 
     // Making sure we can render 3d again
