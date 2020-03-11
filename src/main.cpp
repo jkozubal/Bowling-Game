@@ -21,7 +21,7 @@ namespace Objects {
     };
 
     const int numPins = 10;
-    const float offset = 15;
+    const float offset = 21;
     Properties  ball{ { 0.7, 0.7, 0.7 },{ -30, 0.25, 0 } },
         ground{ { 6, 6, 6 },{ 10, 0.25, 0 } },
         pins[numPins] = {
@@ -263,11 +263,18 @@ void resetPinsAndBall() {
         PxRigidBodyExt::setMassAndUpdateInertia(*bodyPins[i], 0.2f);
     }
 }
+glm::mat4 createCameraMatrix()
+{
+    cameraDir = glm::normalize(glm::vec3(cosf(cameraAngle - glm::radians(90.0f)), 0, sinf(cameraAngle - glm::radians(90.0f))));
+    glm::vec3 up = glm::vec3(0, 1, 0);
+    cameraSide = glm::cross(cameraDir, up);
+    return Core::createViewMatrix(cameraPos, cameraDir, up);
+}
+int vpress = 0;
 void keyboard(unsigned char key, int x, int y)
 {
     float angleSpeed = 0.1f;
-    float moveSpeed = 0.1f;
-    float handleSpeed = 35.f;
+    float moveSpeed = 2.f;
     switch (key)
     {
     case 'z': cameraAngle -= angleSpeed; break;
@@ -276,6 +283,14 @@ void keyboard(unsigned char key, int x, int y)
     case 's': cameraPos -= cameraDir * moveSpeed; break;
     case 'd': cameraPos += cameraSide * moveSpeed; break;
     case 'a': cameraPos -= cameraSide * moveSpeed; break;
+    case 'v':
+        if (vpress == 0) {
+            vpress = 1;
+        }
+        else {
+            vpress = 0;
+        }
+        break;
     case 'r': 
         resetPinsAndBall();
         break;
@@ -324,13 +339,7 @@ void buttonClicks(int button, int state, int x, int y) {
 
 }
 
-glm::mat4 createCameraMatrix()
-{
-    cameraDir = glm::normalize(glm::vec3(cosf(cameraAngle - glm::radians(90.0f)), 0, sinf(cameraAngle - glm::radians(90.0f))));
-    glm::vec3 up = glm::vec3(0, 1, 0);
-    cameraSide = glm::cross(cameraDir, up);
-    return Core::createViewMatrix(cameraPos, cameraDir, up);
-}
+
 
 void drawObjectColor(obj::Model* model, glm::mat4 modelMatrix, glm::vec3 color)
 {
@@ -385,7 +394,13 @@ void renderScene()
     }
 
     // Update of camera and perspective matrices
-    cameraMatrix = view;
+    if (vpress == 0) {
+        cameraMatrix = view;
+    }
+    else if(vpress == 1){
+        cameraMatrix = createCameraMatrix();
+        blocked = true;
+    }
     perspectiveMatrix = Core::createPerspectiveMatrix();
 
     glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
