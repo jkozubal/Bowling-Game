@@ -154,7 +154,7 @@ void createDynamicPin(PxRigidDynamic*& body, Renderable* rend, glm::vec3 const& 
 
     body = pxScene.physics->createRigidDynamic(PxTransform(pos.x, pos.y, pos.z));
     PxShape* aConvexShape = PxRigidActorExt::createExclusiveShape(*body, PxConvexMeshGeometry(convexMesh), *material);
-
+    body->setMass(10.f);
     body->attachShape(*aConvexShape);
     body->userData = rend;
     pxScene.scene->addActor(*body);
@@ -174,7 +174,7 @@ void createDynamicSphere(PxRigidDynamic*& body, Renderable* rend, glm::vec3 cons
 void initPhysicsScene()
 {
     // material for ball and pins
-    material = pxScene.physics->createMaterial(5.f, 3.f, 0.2f);
+    material = pxScene.physics->createMaterial(5.f, 5.f, 0.2f);
     ballMaterial = pxScene.physics->createMaterial(3.f, 10.f, 0.01f);
     // create ground
     bodyGround = pxScene.physics->createRigidStatic(PxTransformFromPlaneEquation(PxPlane(0, 1, 0, 0)));
@@ -239,7 +239,6 @@ bool blocked = false;
 //maybe pass array of fallen pins and reset without them if provided.
 void resetPinsAndBall() {
     blocked = false;
-    //remove pins and ball
     for (int i = 0; i < Objects::numPins; i++) {
         pxScene.scene->removeActor(*bodyPins[i]);
     }
@@ -271,6 +270,7 @@ glm::mat4 createCameraMatrix()
     return Core::createViewMatrix(cameraPos, cameraDir, up);
 }
 int vpress = 0;
+int leftButtonState = 3;
 void keyboard(unsigned char key, int x, int y)
 {
     float angleSpeed = 0.1f;
@@ -293,6 +293,7 @@ void keyboard(unsigned char key, int x, int y)
         break;
     case 'r': 
         resetPinsAndBall();
+        leftButtonState = 3;
         break;
     }
 }
@@ -317,7 +318,7 @@ void mouse(int x, int y)
 }
 double startingTime;
 double clickTime = 0.f;
-int leftButtonState = 3;
+
 double endTime;
 
 void buttonClicks(int button, int state, int x, int y) {
@@ -429,14 +430,14 @@ void renderScene()
     
     
     glBegin(GL_QUADS);
-        if (leftButtonState == GLUT_UP){
+        if (leftButtonState == GLUT_UP && blocked == false){
             clickTime = endTime;
             blocked = true;
         }
         else if (leftButtonState == GLUT_DOWN) {
             clickTime = fmod(glutGet(GLUT_ELAPSED_TIME) - startingTime, 600.f);
         }
-        else {
+        else{
             clickTime = 0.0f;
         }
         if (clickTime < 300.f) {
