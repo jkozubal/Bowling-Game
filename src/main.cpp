@@ -21,19 +21,20 @@ namespace Objects {
     };
 
     const int numPins = 10;
-
-    Properties  ball{ { 0.7, 0.7, 0.7 },{ -10, 0.25, 0 } },
+    const float offset = 15;
+    Properties  ball{ { 0.7, 0.7, 0.7 },{ -30, 0.25, 0 } },
+        ground{ { 6, 6, 6 },{ 10, 0.25, 0 } },
         pins[numPins] = {
-                { { 0.3, 0.3, 0.3 },{  3, 0.25, 0 } },
-                { { 0.3, 0.3, 0.3 },{  3.5, 0.25, -0.25 } },
-                { { 0.3, 0.3, 0.3 },{  3.5, 0.25, 0.25 } },
-                { { 0.3, 0.3, 0.3 },{  4.0, 0.25, 0 } },
-                { { 0.3, 0.3, 0.3 },{  4.0, 0.25, -0.5 } },
-                { { 0.3, 0.3, 0.3 },{  4.0, 0.25, 0.5 } },
-                { { 0.3, 0.3, 0.3 },{  4.5, 0.25, -0.25 } },
-                { { 0.3, 0.3, 0.3 },{  4.5, 0.25, -0.75 } },
-                { { 0.3, 0.3, 0.3 },{  4.5, 0.25, 0.25 } },
-                { { 0.3, 0.3, 0.3 },{  4.5, 0.25, 0.75 } }
+                { { 0.3, 0.3, 0.3 },{  3 + offset, 0.25, 0 } },
+                { { 0.3, 0.3, 0.3 },{  3.5 + offset, 0.25, -0.25 } },
+                { { 0.3, 0.3, 0.3 },{  3.5 + offset, 0.25, 0.25 } },
+                { { 0.3, 0.3, 0.3 },{  4.0 + offset, 0.25, 0 } },
+                { { 0.3, 0.3, 0.3 },{  4.0 + offset, 0.25, -0.5 } },
+                { { 0.3, 0.3, 0.3 },{  4.0 + offset, 0.25, 0.5 } },
+                { { 0.3, 0.3, 0.3 },{  4.5 + offset, 0.25, -0.25 } },
+                { { 0.3, 0.3, 0.3 },{  4.5 + offset, 0.25, -0.75 } },
+                { { 0.3, 0.3, 0.3 },{  4.5 + offset, 0.25, 0.25 } },
+                { { 0.3, 0.3, 0.3 },{  4.5 + offset, 0.25, 0.75 } }
     };
 }
 
@@ -45,7 +46,7 @@ obj::Model planeModel, sphereModel, pinModel;
 PxVec3 vertexes[1647];
 GLuint objectTexture, groundTexture, pinTexture;
 
-glm::vec3 cameraPos = glm::vec3(-20, 2.5, 0);
+glm::vec3 cameraPos = glm::vec3(-40, 2.5, 0);
 glm::vec3 cameraDir;
 glm::vec3 cameraSide;
 float cameraAngle = 1.58f;
@@ -88,7 +89,7 @@ vector<Renderable*> renderables;
 void initRenderables()
 {
     // load models
-    planeModel = obj::loadModelFromFile("models/plane.obj");
+    planeModel = obj::loadModelFromFile("models/wenju.obj");
     sphereModel = obj::loadModelFromFile("models/sphere.obj");
     pinModel = obj::loadModelFromFile("models/bowlingPin.obj");
     int j = 0;
@@ -109,6 +110,7 @@ void initRenderables()
     // create ground
     rendGround.model = &planeModel;
     rendGround.textureId = groundTexture;
+    rendGround.localTransform = glm::rotate(29.845f, glm::vec3(0.f,0.f,1.f)) * glm::rotate(29.843f, glm::vec3(0.f,1.f,0.f)) * glm::scale(Objects::ground.size * 0.4f);
     renderables.emplace_back(&rendGround);
 
     // create handle
@@ -173,7 +175,7 @@ void initPhysicsScene()
 {
     // material for ball and pins
     material = pxScene.physics->createMaterial(3.f, 3.f, 0.2f);
-    ballMaterial = pxScene.physics->createMaterial(3.f, 3.f, 0.01f);
+    ballMaterial = pxScene.physics->createMaterial(3.f, 10.f, 0.01f);
     // create ground
     bodyGround = pxScene.physics->createRigidStatic(PxTransformFromPlaneEquation(PxPlane(0, 1, 0, 0)));
     PxShape* planeShape = pxScene.physics->createShape(PxPlaneGeometry(), *material);
@@ -272,6 +274,28 @@ void mouse(int x, int y)
         glm::vec3(0.0f, 1.0f, 0.0f));
     lastPosition = x;
 }
+double startingTime;
+double clickTime = 0.f;
+int leftButtonState = GLUT_UP;
+double endTime;
+bool blocked = false;
+void buttonClicks(int button, int state, int x, int y) {
+    if (!blocked) {
+        if (button == GLUT_LEFT_BUTTON && state == GLUT_DOWN) {
+            startingTime = glutGet(GLUT_ELAPSED_TIME);
+            leftButtonState = GLUT_DOWN;
+        }
+        clickTime = glutGet(GLUT_ELAPSED_TIME) - startingTime;
+        if (button == GLUT_LEFT_BUTTON && state == GLUT_UP) {
+            leftButtonState = state;
+            endTime = fmod(clickTime, 600.f);
+            blocked = true;
+            moveHandle(-endTime);
+            clickTime = 0;
+        }
+    }
+
+}
 
 glm::mat4 createCameraMatrix()
 {
@@ -316,7 +340,6 @@ void drawObjectTexture(obj::Model* model, glm::mat4 modelMatrix, GLuint textureI
 
     glUseProgram(0);
 }
-
 void renderScene()
 {
     double time = glutGet(GLUT_ELAPSED_TIME) / 1000.0;
@@ -349,6 +372,59 @@ void renderScene()
         drawObjectTexture(renderable->model, renderable->physicsTransform * renderable->localTransform, renderable->textureId);
     }
 
+
+    glMatrixMode(GL_PROJECTION);
+    glPushMatrix();
+    glLoadIdentity();
+    glOrtho(0.0, 600, 600, 0.0, -1.0, 10.0);
+    glMatrixMode(GL_MODELVIEW);
+    glPushMatrix();        
+    glLoadIdentity();
+    glDisable(GL_CULL_FACE);
+
+    glClear(GL_DEPTH_BUFFER_BIT);
+    
+    
+    
+    glBegin(GL_QUADS);
+    if (leftButtonState == GLUT_UP) {
+        clickTime = endTime;
+    }
+    else if (leftButtonState == GLUT_DOWN) {
+        clickTime = fmod(glutGet(GLUT_ELAPSED_TIME) - startingTime,600.f);
+    }
+    else{
+        clickTime = 0.0f;
+    }
+    if (clickTime < 300.f) {
+        glColor3f(0.0f + (clickTime / 300.f), 1.0f, 0.0);
+        glVertex2f(0.0, 0.0);
+        glVertex2f(clickTime, 0.0);
+        glVertex2f(clickTime, 2.f);
+        glVertex2f(0.0, 2.f);
+    }
+    if (clickTime >= 300.f && clickTime < 560) {
+        glColor3f(1.0f, 1.0f - (clickTime / 1500.f), 0.0);
+        glVertex2f(0.0, 0.0);
+        glVertex2f(clickTime, 0.0);
+        glVertex2f(clickTime, 2.f);
+        glVertex2f(0.0, 2.f);
+    }
+    if (clickTime >= 560) {
+        glColor3f(1.0f, 0.0f, 0.0);
+        glVertex2f(0.0, 0.0);
+        glVertex2f(clickTime, 0.0);
+        glVertex2f(clickTime, 2.f);
+        glVertex2f(0.0, 2.f);
+    }
+    
+    glEnd();
+
+    // Making sure we can render 3d again
+    glMatrixMode(GL_PROJECTION);
+    glPopMatrix();
+    glMatrixMode(GL_MODELVIEW);
+    glPopMatrix();        
     glutSwapBuffers();
 }
 
@@ -361,6 +437,8 @@ void init()
 
     initRenderables();
     initPhysicsScene();
+
+
 }
 
 void shutdown()
@@ -379,13 +457,14 @@ int main(int argc, char** argv)
     glutInit(&argc, argv);
     glutInitDisplayMode(GLUT_DEPTH | GLUT_DOUBLE | GLUT_RGBA);
     glutInitWindowPosition(200, 200);
-    glutInitWindowSize(600, 600);
+    glutInitWindowSize(1000, 1000);
     glutCreateWindow("Bowling game for computer graphics");
     glewInit();
 
     init();
     glutKeyboardFunc(keyboard);
     glutPassiveMotionFunc(mouse);
+    glutMouseFunc(buttonClicks);
     glutDisplayFunc(renderScene);
     glutIdleFunc(idle);
 
