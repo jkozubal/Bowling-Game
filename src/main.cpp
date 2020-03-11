@@ -174,7 +174,7 @@ void createDynamicSphere(PxRigidDynamic*& body, Renderable* rend, glm::vec3 cons
 void initPhysicsScene()
 {
     // material for ball and pins
-    material = pxScene.physics->createMaterial(3.f, 3.f, 0.2f);
+    material = pxScene.physics->createMaterial(5.f, 3.f, 0.2f);
     ballMaterial = pxScene.physics->createMaterial(3.f, 10.f, 0.01f);
     // create ground
     bodyGround = pxScene.physics->createRigidStatic(PxTransformFromPlaneEquation(PxPlane(0, 1, 0, 0)));
@@ -233,7 +233,7 @@ void updateTransforms()
 
 void moveHandle(float offset) {
     if (!bodyHandle) return;
-    bodyHandle->setAngularVelocity(PxVec3(-camZ*40.f, 0.f, offset));
+    bodyHandle->setAngularVelocity(PxVec3(-camZ*35.f, 0.f, offset));
 }
 bool blocked = false;
 //maybe pass array of fallen pins and reset without them if provided.
@@ -310,7 +310,6 @@ void mouse(int x, int y)
     else if (camZ < -4) {
         camZ = -4;
     }
-
     view = glm::lookAt(glm::vec3(camX, cameraPos.y, camZ),
         Objects::ball.pos,
         glm::vec3(0.0f, 1.0f, 0.0f));
@@ -318,7 +317,7 @@ void mouse(int x, int y)
 }
 double startingTime;
 double clickTime = 0.f;
-int leftButtonState = GLUT_UP;
+int leftButtonState = 3;
 double endTime;
 
 void buttonClicks(int button, int state, int x, int y) {
@@ -329,7 +328,7 @@ void buttonClicks(int button, int state, int x, int y) {
         }
         clickTime = glutGet(GLUT_ELAPSED_TIME) - startingTime;
         if (button == GLUT_LEFT_BUTTON && state == GLUT_UP) {
-            leftButtonState = state;
+            leftButtonState = GLUT_UP;
             endTime = fmod(clickTime, 600.f);
             blocked = true;
             moveHandle(-endTime);
@@ -396,6 +395,7 @@ void renderScene()
     // Update of camera and perspective matrices
     if (vpress == 0) {
         cameraMatrix = view;
+        blocked = false;
     }
     else if(vpress == 1){
         cameraMatrix = createCameraMatrix();
@@ -429,36 +429,37 @@ void renderScene()
     
     
     glBegin(GL_QUADS);
-    if (leftButtonState == GLUT_UP) {
-        clickTime = endTime;
-    }
-    else if (leftButtonState == GLUT_DOWN) {
-        clickTime = fmod(glutGet(GLUT_ELAPSED_TIME) - startingTime,600.f);
-    }
-    else{
-        clickTime = 0.0f;
-    }
-    if (clickTime < 300.f) {
-        glColor3f(0.0f + (clickTime / 300.f), 1.0f, 0.0);
-        glVertex2f(0.0, 0.0);
-        glVertex2f(clickTime, 0.0);
-        glVertex2f(clickTime, 2.f);
-        glVertex2f(0.0, 2.f);
-    }
-    if (clickTime >= 300.f && clickTime < 560) {
-        glColor3f(1.0f, 1.0f - (clickTime / 1500.f), 0.0);
-        glVertex2f(0.0, 0.0);
-        glVertex2f(clickTime, 0.0);
-        glVertex2f(clickTime, 2.f);
-        glVertex2f(0.0, 2.f);
-    }
-    if (clickTime >= 560) {
-        glColor3f(1.0f, 0.0f, 0.0);
-        glVertex2f(0.0, 0.0);
-        glVertex2f(clickTime, 0.0);
-        glVertex2f(clickTime, 2.f);
-        glVertex2f(0.0, 2.f);
-    }
+        if (leftButtonState == GLUT_UP){
+            clickTime = endTime;
+            blocked = true;
+        }
+        else if (leftButtonState == GLUT_DOWN) {
+            clickTime = fmod(glutGet(GLUT_ELAPSED_TIME) - startingTime, 600.f);
+        }
+        else {
+            clickTime = 0.0f;
+        }
+        if (clickTime < 300.f) {
+            glColor3f(0.0f + (clickTime / 300.f), 1.0f, 0.0);
+            glVertex2f(0.0, 0.0);
+            glVertex2f(clickTime, 0.0);
+            glVertex2f(clickTime, 2.f);
+            glVertex2f(0.0, 2.f);
+        }
+        if (clickTime >= 300.f && clickTime < 560) {
+            glColor3f(1.0f, 1.0f - (clickTime / 1500.f), 0.0);
+            glVertex2f(0.0, 0.0);
+            glVertex2f(clickTime, 0.0);
+            glVertex2f(clickTime, 2.f);
+            glVertex2f(0.0, 2.f);
+        }
+        if (clickTime >= 560) {
+            glColor3f(1.0f, 0.0f, 0.0);
+            glVertex2f(0.0, 0.0);
+            glVertex2f(clickTime, 0.0);
+            glVertex2f(clickTime, 2.f);
+            glVertex2f(0.0, 2.f);
+        }
     glEnd();
 
     // Making sure we can render 3d again
