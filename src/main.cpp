@@ -45,7 +45,7 @@ GLuint programTexture;
 obj::Model planeModel, sphereModel, pinModel;
 PxVec3 vertexes[1647];
 GLuint objectTexture, groundTexture, pinTexture;
-
+PxVec3 firstPinPos;
 glm::vec3 cameraPos = glm::vec3(-40, 2.5, 0);
 glm::vec3 cameraDir;
 glm::vec3 cameraSide;
@@ -59,7 +59,7 @@ glm::mat4 cameraMatrix, perspectiveMatrix;
 
 glm::vec3 lightDir = glm::normalize(glm::vec3(0.5, -1, -0.5));
 
-
+int score = 0;
 // Initalization of physical scene (PhysX)
 Physics pxScene(9.8 /* gravity (m/s^2) */);
 
@@ -67,14 +67,14 @@ Physics pxScene(9.8 /* gravity (m/s^2) */);
 const double physicsStepTime = 1.f / 60.f;
 double physicsTimeToProcess = 0;
 glm::mat4 view;
-
+vector<double> startingPositions;
 // physical objects
 PxMaterial* material = nullptr;
 PxMaterial* ballMaterial = nullptr;
 PxRigidStatic* bodyGround = nullptr;
 PxRigidDynamic* bodyHandle = nullptr,
-                *pinHandle = nullptr,
-                *bodyPins[Objects::numPins] = { nullptr, nullptr, nullptr, nullptr, nullptr, nullptr, nullptr, nullptr, nullptr, nullptr };
+* pinHandle = nullptr,
+* bodyPins[Objects::numPins] = { nullptr, nullptr, nullptr, nullptr, nullptr, nullptr, nullptr, nullptr, nullptr, nullptr };
 
 // renderable objects (description of a single renderable instance)
 struct Renderable {
@@ -84,16 +84,20 @@ struct Renderable {
 };
 Renderable rendGround, rendHandle, rendPin, rendPins[10];
 vector<Renderable*> renderables;
-
+vector<int> pinsDownIndexes;
 
 void initRenderables()
 {
+    //get starting pin positions x'es
+    for (int i = 0; i < 10; i++) {
+        startingPositions.push_back(Objects::pins[i].pos.x);
+    }
     // load models
     planeModel = obj::loadModelFromFile("models/wenju.obj");
     sphereModel = obj::loadModelFromFile("models/sphere.obj");
     pinModel = obj::loadModelFromFile("models/bowlingPin.obj");
     int j = 0;
-    for (int i = 0; i < pinModel.vertex.size(); i+=3) {
+    for (int i = 0; i < pinModel.vertex.size(); i += 3) {
         vertexes[j] = PxVec3(pinModel.vertex[i] * 0.3, pinModel.vertex[i + 1] * 0.3, pinModel.vertex[i + 2] * 0.3);
         j++;
     }
@@ -110,7 +114,7 @@ void initRenderables()
     // create ground
     rendGround.model = &planeModel;
     rendGround.textureId = groundTexture;
-    rendGround.localTransform = glm::rotate(29.845f, glm::vec3(0.f,0.f,1.f)) * glm::rotate(29.843f, glm::vec3(0.f,1.f,0.f)) * glm::scale(Objects::ground.size * 0.4f);
+    rendGround.localTransform = glm::rotate(29.845f, glm::vec3(0.f, 0.f, 1.f)) * glm::rotate(29.843f, glm::vec3(0.f, 1.f, 0.f)) * glm::scale(Objects::ground.size * 0.4f);
     renderables.emplace_back(&rendGround);
 
     // create handle
@@ -132,10 +136,10 @@ void initRenderables()
 
 PxBoxGeometry sizeToPxBoxGeometry(glm::vec3 const& size) {
     auto h = size * 0.5f;
-    return PxBoxGeometry(h.x, h.y , h.z);
+    return PxBoxGeometry(h.x, h.y, h.z);
 }
 
-
+vector<PxRigidDynamic*> pinsBody;
 void createDynamicPin(PxRigidDynamic*& body, Renderable* rend, glm::vec3 const& pos, glm::vec3 const& size)
 {
     PxConvexMeshDesc convexDesc;
@@ -148,7 +152,7 @@ void createDynamicPin(PxRigidDynamic*& body, Renderable* rend, glm::vec3 const& 
     PxConvexMeshCookingResult::Enum result;
     if (!pxScene.cooking->cookConvexMesh(convexDesc, buf, &result))
         cout << "can't initialize mesh";
-        
+
     PxDefaultMemoryInputData input(buf.getData(), buf.getSize());
     PxConvexMesh* convexMesh = pxScene.physics->createConvexMesh(input);
 
@@ -157,6 +161,7 @@ void createDynamicPin(PxRigidDynamic*& body, Renderable* rend, glm::vec3 const& 
     body->setMass(10.f);
     body->attachShape(*aConvexShape);
     body->userData = rend;
+    pinsBody.push_back(body);
     pxScene.scene->addActor(*body);
     aConvexShape->release();
 }
@@ -233,16 +238,32 @@ void updateTransforms()
 
 void moveHandle(float offset) {
     if (!bodyHandle) return;
-    bodyHandle->setAngularVelocity(PxVec3(-camZ*35.f, 0.f, offset));
+    bodyHandle->setAngularVelocity(PxVec3(-camZ * 35.f, 0.f, offset));
 }
 bool blocked = false;
 //maybe pass array of fallen pins and reset without them if provided.
-void resetPinsAndBall() {
+void resetPinsAndBall(vector<int>downIndexes) {
+    pinsBody.clear();
+    startingPositions.clear();
     blocked = false;
+    sort(downIndexes.begin(), downIndexes.end());
+    renderables.clear();
+    for (int i = 0; i < Objects::numPins; i++) {
+        renderables.emplace_back(&rendGround);
+        renderables.emplace_back(&rendHandle);
+        if (!binary_search(downIndexes.begin(), downIndexes.end(), i)) {
+            rendPins[i].model = &pinModel;
+            rendPins[i].textureId = pinTexture;
+            rendPins[i].localTransform = glm::scale(Objects::pins[i].size);
+            renderables.emplace_back(&rendPins[i]);
+            startingPositions.push_back(Objects::pins[i].pos.x);
+        }
+    }
     for (int i = 0; i < Objects::numPins; i++) {
         pxScene.scene->removeActor(*bodyPins[i]);
     }
     pxScene.scene->removeActor(*bodyHandle);
+
     // create ground
     bodyGround = pxScene.physics->createRigidStatic(PxTransformFromPlaneEquation(PxPlane(0, 1, 0, 0)));
     PxShape* planeShape = pxScene.physics->createShape(PxPlaneGeometry(), *material);
@@ -258,8 +279,10 @@ void resetPinsAndBall() {
 
     // create pins
     for (int i = 0; i < Objects::numPins; i++) {
-        createDynamicPin(bodyPins[i], &rendPins[i], Objects::pins[i].pos, Objects::pins[i].size);
-        PxRigidBodyExt::setMassAndUpdateInertia(*bodyPins[i], 0.2f);
+        if (!binary_search(downIndexes.begin(), downIndexes.end(), i)) {
+            createDynamicPin(bodyPins[i], &rendPins[i], Objects::pins[i].pos, Objects::pins[i].size);
+            PxRigidBodyExt::setMassAndUpdateInertia(*bodyPins[i], 0.2f);
+        }
     }
 }
 glm::mat4 createCameraMatrix()
@@ -291,8 +314,8 @@ void keyboard(unsigned char key, int x, int y)
             vpress = 0;
         }
         break;
-    case 'r': 
-        resetPinsAndBall();
+    case 'r':
+        resetPinsAndBall({});
         leftButtonState = 3;
         break;
     }
@@ -304,7 +327,7 @@ void mouse(int x, int y)
     const float radius = 3.0f;
     const float sensitivity = 0.005f;
     differenceZ = lastPosition - x;
-    camZ = (cos(x)/100.f * radius - lastPosition +300) * sensitivity;
+    camZ = (cos(x) / 100.f * radius - lastPosition + 300) * sensitivity;
     if (camZ > 4) {
         camZ = 4;
     }
@@ -376,6 +399,11 @@ void drawObjectTexture(obj::Model* model, glm::mat4 modelMatrix, GLuint textureI
 
     glUseProgram(0);
 }
+vector <bool> checked(10, false);
+bool first = true;
+double pinDownTimer = 0;
+int throwNumber = 1;
+int finalScore = 0;
 void renderScene()
 {
     double time = glutGet(GLUT_ELAPSED_TIME) / 1000.0;
@@ -392,13 +420,42 @@ void renderScene()
             physicsTimeToProcess -= physicsStepTime;
         }
     }
-
+    if (pinDownTimer != 0 && !first) {
+        cout << time - pinDownTimer << '\n';
+        if (time - pinDownTimer >= 2.f) {
+            cout << "Throw number: " << throwNumber << '\n';
+            if (throwNumber % 2 == 0 || score == 10) {
+                if (score == 10) {
+                    throwNumber++;
+                }
+                resetPinsAndBall({});
+                checked.clear();
+                for (int i = 0; i < 10; i++) {
+                    checked.push_back(false);
+                }
+                leftButtonState = 3;
+                pinsDownIndexes.clear();
+                finalScore += score;
+                cout << "Round Score: " << score << '\n';
+                cout << "Final Score: " << finalScore << '\n';
+                score = 0;
+            }
+            else {
+                cout << "First score: " << score << '\n';
+                resetPinsAndBall(pinsDownIndexes);
+                leftButtonState = 3;
+            }
+            pinDownTimer = 0;
+            first = true;
+            throwNumber++;
+        }
+    }
     // Update of camera and perspective matrices
     if (vpress == 0) {
         cameraMatrix = view;
         blocked = false;
     }
-    else if(vpress == 1){
+    else if (vpress == 1) {
         cameraMatrix = createCameraMatrix();
         blocked = true;
     }
@@ -421,53 +478,63 @@ void renderScene()
     glLoadIdentity();
     glOrtho(0.0, 600, 600, 0.0, -1.0, 10.0);
     glMatrixMode(GL_MODELVIEW);
-    glPushMatrix();        
+    glPushMatrix();
     glLoadIdentity();
     glDisable(GL_CULL_FACE);
 
     glClear(GL_DEPTH_BUFFER_BIT);
-    
-    
-    
-    glBegin(GL_QUADS);
-        if (leftButtonState == GLUT_UP && blocked == false){
-            clickTime = endTime;
-            blocked = true;
-        }
-        else if (leftButtonState == GLUT_DOWN) {
-            clickTime = fmod(glutGet(GLUT_ELAPSED_TIME) - startingTime, 600.f);
-        }
-        else{
-            clickTime = 0.0f;
-        }
-        if (clickTime < 300.f) {
-            glColor3f(0.0f + (clickTime / 300.f), 1.0f, 0.0);
-            glVertex2f(0.0, 0.0);
-            glVertex2f(clickTime, 0.0);
-            glVertex2f(clickTime, 2.f);
-            glVertex2f(0.0, 2.f);
-        }
-        if (clickTime >= 300.f && clickTime < 560) {
-            glColor3f(1.0f, 1.0f - (clickTime / 1500.f), 0.0);
-            glVertex2f(0.0, 0.0);
-            glVertex2f(clickTime, 0.0);
-            glVertex2f(clickTime, 2.f);
-            glVertex2f(0.0, 2.f);
-        }
-        if (clickTime >= 560) {
-            glColor3f(1.0f, 0.0f, 0.0);
-            glVertex2f(0.0, 0.0);
-            glVertex2f(clickTime, 0.0);
-            glVertex2f(clickTime, 2.f);
-            glVertex2f(0.0, 2.f);
-        }
-    glEnd();
 
+
+
+    glBegin(GL_QUADS);
+    if (leftButtonState == GLUT_UP && blocked == false) {
+        clickTime = endTime;
+        blocked = true;
+    }
+    else if (leftButtonState == GLUT_DOWN) {
+        clickTime = fmod(glutGet(GLUT_ELAPSED_TIME) - startingTime, 600.f);
+    }
+    else {
+        clickTime = 0.0f;
+    }
+    if (clickTime < 300.f) {
+        glColor3f(0.0f + (clickTime / 300.f), 1.0f, 0.0);
+        glVertex2f(0.0, 0.0);
+        glVertex2f(clickTime, 0.0);
+        glVertex2f(clickTime, 2.f);
+        glVertex2f(0.0, 2.f);
+    }
+    if (clickTime >= 300.f && clickTime < 560) {
+        glColor3f(1.0f, 1.0f - (clickTime / 1500.f), 0.0);
+        glVertex2f(0.0, 0.0);
+        glVertex2f(clickTime, 0.0);
+        glVertex2f(clickTime, 2.f);
+        glVertex2f(0.0, 2.f);
+    }
+    if (clickTime >= 560) {
+        glColor3f(1.0f, 0.0f, 0.0);
+        glVertex2f(0.0, 0.0);
+        glVertex2f(clickTime, 0.0);
+        glVertex2f(clickTime, 2.f);
+        glVertex2f(0.0, 2.f);
+    }
+    glEnd();
+    for (int i = 0; i < pinsBody.size(); i++) {
+        if (abs(startingPositions.at(i) - pinsBody.at(i)->getGlobalPose().p.x) >= 0.01 && !checked[i]) {
+            pinsDownIndexes.push_back(i);
+            score++;
+            checked[i] = true;
+            if (first) {
+                pinDownTimer = time;
+                first = false;
+            }
+        }
+    }
     // Making sure we can render 3d again
     glMatrixMode(GL_PROJECTION);
     glPopMatrix();
     glMatrixMode(GL_MODELVIEW);
-    glPopMatrix();        
+    glPopMatrix();
     glutSwapBuffers();
 }
 
