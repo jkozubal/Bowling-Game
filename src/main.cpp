@@ -157,7 +157,8 @@ void createDynamicPin(PxRigidDynamic*& body, Renderable* rend, glm::vec3 const& 
     PxConvexMesh* convexMesh = pxScene.physics->createConvexMesh(input);
 
     body = pxScene.physics->createRigidDynamic(PxTransform(pos.x, pos.y, pos.z));
-    PxShape* aConvexShape = PxRigidActorExt::createExclusiveShape(*body, PxConvexMeshGeometry(convexMesh), *material);
+    //PxShape* aConvexShape = PxRigidActorExt::createExclusiveShape(*body, PxConvexMeshGeometry(convexMesh), *material);
+    PxShape* aConvexShape = pxScene.physics->createShape(PxConvexMeshGeometry(convexMesh), *material);
     body->setMass(10.f);
     body->attachShape(*aConvexShape);
     body->userData = rend;
@@ -423,7 +424,6 @@ void renderScene()
     if (pinDownTimer != 0 && !first) {
         cout << time - pinDownTimer << '\n';
         if (time - pinDownTimer >= 2.f) {
-            cout << "Throw number: " << throwNumber << '\n';
             if (throwNumber % 2 == 0 || score == 10) {
                 if (score == 10) {
                     throwNumber++;
@@ -436,14 +436,18 @@ void renderScene()
                 leftButtonState = 3;
                 pinsDownIndexes.clear();
                 finalScore += score;
+                system("cls");
+                cout << "Throw number: " << throwNumber << '\n';
                 cout << "Round Score: " << score << '\n';
                 cout << "Final Score: " << finalScore << '\n';
                 score = 0;
             }
             else {
-                cout << "First score: " << score << '\n';
                 resetPinsAndBall(pinsDownIndexes);
                 leftButtonState = 3;
+                system("cls");
+                cout << "Throw number: " << throwNumber << '\n';
+                cout << "First score: " << score << '\n';
             }
             pinDownTimer = 0;
             first = true;
